@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "894320309904",
+    "project_id": "employee-eval-backend",
+    "storage_bucket": "employee-eval-backend.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:894320309904:android:7d64b7b0e41bbd3f214a15",
+        "android_client_info": {
+          "package_name": "com.example.frontend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDGnqz-pu2cx4I7cABuXkze243mXigTrDI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
