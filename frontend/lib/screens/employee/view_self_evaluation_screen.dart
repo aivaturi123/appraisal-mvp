@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class ViewSelfEvaluationScreen extends StatefulWidget {
   final String employeeId;
+  final bool showManagerReview;
 
-  const ViewSelfEvaluationScreen({Key? key, required this.employeeId}) : super(key: key);
+  const ViewSelfEvaluationScreen({
+    Key? key,
+    required this.employeeId,
+    this.showManagerReview = false,
+  }) : super(key: key);
 
   @override
-  _ViewSelfEvaluationScreenState createState() => _ViewSelfEvaluationScreenState();
+  State<ViewSelfEvaluationScreen> createState() => _ViewSelfEvaluationScreenState();
 }
 
 class _ViewSelfEvaluationScreenState extends State<ViewSelfEvaluationScreen> {
@@ -59,6 +63,29 @@ class _ViewSelfEvaluationScreenState extends State<ViewSelfEvaluationScreen> {
     );
   }
 
+  Widget buildManagerReviewSection() {
+    final managerReview = evalData?['managerReview'];
+    if (managerReview == null) return Text("Manager review not yet submitted.");
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("🧑‍💼 Manager's Review", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        SizedBox(height: 10),
+        for (var key in (managerReview['scores'] as Map).keys)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              buildField("Manager Score - $key", managerReview['scores'][key].toString()),
+              buildField("Manager Comment - $key", managerReview['comments'][key]),
+            ],
+          ),
+        Divider(height: 30),
+        buildField("Manager Summary", managerReview['summary']),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -98,6 +125,8 @@ class _ViewSelfEvaluationScreenState extends State<ViewSelfEvaluationScreen> {
                       buildField("What Went Well", evalData!['summary']['whatWentWell']),
                       buildField("Areas to Power Up", evalData!['summary']['powerUp']),
                       buildField("Next Steps", evalData!['summary']['nextSteps']),
+                      SizedBox(height: 30),
+                      if (widget.showManagerReview) buildManagerReviewSection(),
                     ],
                   ),
                 ),

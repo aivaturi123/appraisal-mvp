@@ -123,29 +123,36 @@ SizedBox(height: 30),
               ),
               SizedBox(height: 20),
               ElevatedButton.icon(
-                onPressed: () async {
-                  final uid = FirebaseAuth.instance.currentUser!.uid;
-                  final doc = await FirebaseFirestore.instance
-                      .collection('evaluations')
-                      .doc(uid)
-                      .get();
+  onPressed: () async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final doc = await FirebaseFirestore.instance
+        .collection('evaluations')
+        .doc(uid)
+        .get();
 
-                  if (doc.exists) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ViewSelfEvaluationScreen(employeeId: uid),
-                      ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("⚠️ You haven't submitted an evaluation yet.")),
-                    );
-                  }
-                },
-                icon: Icon(Icons.visibility),
-                label: Text("View Submitted Evaluation"),
-              ),
+    if (doc.exists) {
+      final data = doc.data();
+      final hasManagerReview = data?['managerReview'] != null;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ViewSelfEvaluationScreen(
+            employeeId: uid,
+            showManagerReview: hasManagerReview,
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("⚠️ You haven't submitted an evaluation yet.")),
+      );
+    }
+  },
+  icon: Icon(Icons.visibility),
+  label: Text("View Submitted Evaluation"),
+),
+
             ],
           ),
         ),
