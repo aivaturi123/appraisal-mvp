@@ -32,18 +32,20 @@ class _SelfEvaluationFormState extends State<SelfEvaluationForm> {
     'Adaptability & Learning'
   ];
 
-  final _employeeIdController = TextEditingController();
-  final _departmentController = TextEditingController();
   final _strengthsController = TextEditingController();
   final _weaknessesController = TextEditingController();
   final _opportunitiesController = TextEditingController();
   final _threatsController = TextEditingController();
+
   final _whatWentWellController = TextEditingController();
   final _powerUpController = TextEditingController();
   final _nextStepsController = TextEditingController();
-  final List<TextEditingController> _bmcControllers =
-    List.generate(9, (_) => TextEditingController());
 
+  final List<TextEditingController> _achievementControllers =
+      List.generate(3, (_) => TextEditingController());
+
+  final List<TextEditingController> _bmcControllers =
+      List.generate(9, (_) => TextEditingController());
 
   String? feedbackText;
   bool isSubmitting = false;
@@ -59,68 +61,65 @@ class _SelfEvaluationFormState extends State<SelfEvaluationForm> {
   }
 
   Future<void> submitEvaluation() async {
-  if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) return;
 
-  final uid = FirebaseAuth.instance.currentUser!.uid;
-  final timestamp = Timestamp.now();
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final timestamp = Timestamp.now();
 
-  final data = {
-    'name': widget.employeeName,
-    'scores': _scores,
-    'comments': _comments,
-    'swot': {
-      'strengths': _strengthsController.text,
-      'weaknesses': _weaknessesController.text,
-      'opportunities': _opportunitiesController.text,
-      'threats': _threatsController.text,
-    },
-    'bmc': _bmcControllers.map((e) => e.text).toList(),
-
-    'summary': {
-      'whatWentWell': _whatWentWellController.text,
-      'powerUp': _powerUpController.text,
-      'nextSteps': _nextStepsController.text,
-    },
-    'timestamp': timestamp,
-  };
-
-  setState(() => isSubmitting = true);
-
-  try {
-    await FirebaseFirestore.instance.collection('evaluations').doc(uid).set(data);
-
-    final jsonSafeData = {
-      ...data,
-      'timestamp': timestamp.toDate().toIso8601String(),
+    final data = {
+      'name': widget.employeeName,
+      'scores': _scores,
+      'comments': _comments,
+      'swot': {
+        'strengths': _strengthsController.text,
+        'weaknesses': _weaknessesController.text,
+        'opportunities': _opportunitiesController.text,
+        'threats': _threatsController.text,
+      },
+      'achievements': _achievementControllers.map((e) => e.text).toList(),
+      'bmc': _bmcControllers.map((e) => e.text).toList(),
+      'summary': {
+        'whatWentWell': _whatWentWellController.text,
+        'powerUp': _powerUpController.text,
+        'nextSteps': _nextStepsController.text,
+      },
+      'timestamp': timestamp,
     };
 
-    final feedbackRes = await http.post(
-      Uri.parse('http://localhost:8000/generate-feedback'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(jsonSafeData),
-    );
+    setState(() => isSubmitting = true);
 
-    if (feedbackRes.statusCode == 200) {
-      final json = jsonDecode(feedbackRes.body);
-      final feedback = json['feedback'];
-      print("✅ Feedback received");
+    try {
+      await FirebaseFirestore.instance.collection('evaluations').doc(uid).set(data);
 
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => AiFeedbackPage(feedbackText: feedback),
-        ),
+      final jsonSafeData = {
+        ...data,
+        'timestamp': timestamp.toDate().toIso8601String(),
+      };
+
+      final feedbackRes = await http.post(
+        Uri.parse('http://localhost:8000/generate-feedback'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(jsonSafeData),
       );
-    } else {
-      print("❌ Feedback failed with status ${feedbackRes.statusCode}");
-      showSnack("⚠️ Failed to get AI feedback.");
+
+      if (feedbackRes.statusCode == 200) {
+        final json = jsonDecode(feedbackRes.body);
+        final feedback = json['feedback'];
+
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => AiFeedbackPage(feedbackText: feedback),
+          ),
+        );
+      } else {
+        showSnack("⚠️ Failed to get AI feedback.");
+      }
+    } catch (e) {
+      showSnack('❌ Error: $e');
     }
-  } catch (e) {
-    showSnack('❌ Error: $e');
+
+    setState(() => isSubmitting = false);
   }
-
-  setState(() => isSubmitting = false);
-}
-
 
   void showSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
@@ -135,7 +134,7 @@ class _SelfEvaluationFormState extends State<SelfEvaluationForm> {
       case 2:
         return _buildAchievementsStep();
       case 3:
-      return buildBmcGameboardStep();
+        return buildBmcGameboardStep();
       case 4:
         return _buildSummaryStep();
       default:
@@ -213,68 +212,63 @@ class _SelfEvaluationFormState extends State<SelfEvaluationForm> {
   }
 
   Widget _buildAchievementsStep() {
-  return Form(
-    key: _formKey,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Text('🔹 Step 3: Achievements & Challenges',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 12),
-        _buildTextField("Key accomplishments this quarter", _bmcControllers[0]),
-_buildTextField("Major challenges and how you overcame them", _bmcControllers[1]),
-_buildTextField("What you’re most proud of", _bmcControllers[2]),
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text('🔹 Step 3: Achievements & Challenges',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          _buildTextField("Key accomplishments this quarter", _achievementControllers[0]),
+          _buildTextField("Major challenges and how you overcame them", _achievementControllers[1]),
+          _buildTextField("What you’re most proud of", _achievementControllers[2]),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              ElevatedButton(onPressed: _prevStep, child: Text("Back")),
+              ElevatedButton(onPressed: _nextStep, child: Text("Continue")),
+            ],
+          )
+        ],
+      ),
+    );
+  }
 
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            ElevatedButton(onPressed: _prevStep, child: Text("Back")),
-            ElevatedButton(onPressed: _nextStep, child: Text("Continue")),
-          ],
-        )
-      ],
-    ),
-  );
-}
+  Widget buildBmcGameboardStep() {
+    final labels = [
+      "Customer Segments (Who do you help the most?)",
+      "Value Proposition (What value do you deliver?)",
+      "Channels (How do you reach your customers?)",
+      "Customer Relationships (How do you build trust?)",
+      "Revenue Streams (How do you help grow revenue?)",
+      "Key Resources (What tools or skills do you use?)",
+      "Key Activities (Your main tasks)",
+      "Key Partnerships (Who do you work with?)",
+      "Cost Structure (How do you save money or boost efficiency?)",
+    ];
 
-Widget buildBmcGameboardStep() {
-  final labels = [
-    "Customer Segments (Who do you help the most?)",
-    "Value Proposition (What value do you deliver?)",
-    "Channels (How do you reach your customers?)",
-    "Customer Relationships (How do you build trust?)",
-    "Revenue Streams (How do you help grow revenue?)",
-    "Key Resources (What tools or skills do you use?)",
-    "Key Activities (Your main tasks)",
-    "Key Partnerships (Who do you work with?)",
-    "Cost Structure (How do you save money or boost efficiency?)",
-  ];
-
-  return Form(
-    key: _formKey,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Text(
-          '🔹 Step 4: Business Model Canvas - Your Gameboard',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        for (int i = 0; i < labels.length; i++)
-          _buildTextField(labels[i], _bmcControllers[i]),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            ElevatedButton(onPressed: _prevStep, child: Text("Back")),
-            ElevatedButton(onPressed: _nextStep, child: Text("Continue")),
-          ],
-        )
-      ],
-    ),
-  );
-}
-
-
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text('🔹 Step 4: Business Model Canvas - Your Gameboard',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          for (int i = 0; i < labels.length; i++)
+            _buildTextField(labels[i], _bmcControllers[i]),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              ElevatedButton(onPressed: _prevStep, child: Text("Back")),
+              ElevatedButton(onPressed: _nextStep, child: Text("Continue")),
+            ],
+          )
+        ],
+      ),
+    );
+  }
 
   Widget _buildSummaryStep() {
     return Form(
@@ -325,6 +319,20 @@ Widget buildBmcGameboardStep() {
   }
 
   @override
+  void dispose() {
+    _strengthsController.dispose();
+    _weaknessesController.dispose();
+    _opportunitiesController.dispose();
+    _threatsController.dispose();
+    _whatWentWellController.dispose();
+    _powerUpController.dispose();
+    _nextStepsController.dispose();
+    for (var c in _achievementControllers) c.dispose();
+    for (var c in _bmcControllers) c.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text("Self Evaluation Form")),
@@ -339,20 +347,4 @@ Widget buildBmcGameboardStep() {
       ),
     );
   }
-
-  @override
-void dispose() {
-  _employeeIdController.dispose();
-  _departmentController.dispose();
-  _strengthsController.dispose();
-  _weaknessesController.dispose();
-  _opportunitiesController.dispose();
-  _threatsController.dispose();
-  _whatWentWellController.dispose();
-  _powerUpController.dispose();
-  _nextStepsController.dispose();
-  for (var c in _bmcControllers) c.dispose();
-  super.dispose();
-}
-
 }
