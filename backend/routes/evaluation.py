@@ -19,21 +19,24 @@ async def submit_evaluation(request: Request):
 async def generate_feedback(request: Request):
     print("📥 /generate-feedback called")
     data = await request.json()
-
+    role = data.get("role", "Employee")
     summary = data.get("summary", {})
     scores = data.get("scores", {})
     comments = data.get("comments", {})
     swot = data.get("swot", {})
     name = data.get("name", "Employee")
 
-    prompt = f"""
+    prompt = f""" You are generating a performance evaluation for a(n) {role}. Use this role to identify standard responsibilities, typical KPIs, and expected contributions in this position.
+
 You are an experienced HR performance coach.
 
-Based on the self-evaluation below, provide a plain-text, professional, and friendly performance summary for the employee. 
+Based on the self-evaluation below, provide a plain-text, professional, and friendly performance summary for the employee. Tailor your evaluation to the responsibilities and expectations of the given role. If the employee's responses reflect role-specific excellence, highlight that.
+
 Do not use markdown, bullet points, or any symbols like *, #, -, etc.
 
 === EMPLOYEE INPUT ===
 Name: {name}
+Role: {role}
 
 Performance Scorecard (Scores & Comments):
 {chr(10).join([f"{k}: Score {scores.get(k, '-')}, Comment: {comments.get(k, 'N/A')}" for k in scores])}
@@ -60,10 +63,11 @@ Area for Growth:
 Motivational Note:
 [A short, uplifting message.]
 
-Next Steps (2 Practical Tips):
+Next Steps:
 [Two clear, numbered sentences suggesting next steps.]
 
 Please keep the output professional and clean — no emojis, markdown, special symbols, or non-ASCII characters.
+
 """
 
 
