@@ -43,7 +43,9 @@ class _ViewSelfEvaluationScreenState extends State<ViewSelfEvaluationScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("⚠️ No evaluation found")));
       }
-    } catch (e) {
+    } catch (e, stack) {
+       print("🔥 Firestore load error: $e");
+      print("📛 Stack trace:\n$stack");
       print("Error loading evaluation: $e");
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ Failed to load evaluation")));
     }
