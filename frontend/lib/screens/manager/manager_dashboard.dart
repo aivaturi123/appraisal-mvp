@@ -67,7 +67,11 @@ class ManagerDashboard extends StatelessWidget {
                     separatorBuilder: (_, __) => SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final eval = evaluations[index];
-                      final name = eval['name'] ?? 'Unnamed';
+                      final name = eval['name'] ??
+             eval['employee']?['name'] ??
+             eval['employeeName'] ??
+             'Unnamed';
+
                       final timestamp = eval['timestamp'] as Timestamp?;
                       final scoreCount = (eval['scores'] as Map?)?.length ?? 0;
 

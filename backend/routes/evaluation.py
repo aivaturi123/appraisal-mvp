@@ -109,3 +109,58 @@ Please keep the output professional and clean — no emojis, markdown, special s
                 "feedback": "⚠️ AI feedback generation failed. Please try again later.",
                 "error": str(e)
             }
+        
+@router.post("/generate-ai-summary")
+async def generate_ai_summary(payload: dict):
+    employee_eval = payload.get("employee", {})
+    manager_eval = payload.get("manager", {})
+
+    prompt = f"""Compare the employee self-evaluation and manager evaluation below. Generate a concise AI summary:
+
+Employee Self-Evaluation:
+Scores: {employee_eval.get('scores')}
+Comments: {employee_eval.get('comments')}
+SWOT: {employee_eval.get('swot')}
+Achievements: {employee_eval.get('achievements')}
+BMC: {employee_eval.get('bmc')}
+Summary: {employee_eval.get('summary')}
+
+Manager Evaluation:
+Scores: {manager_eval.get('scores')}
+Comments: {manager_eval.get('comments')}
+SWOT: {manager_eval.get('swot')}
+Achievements: {manager_eval.get('achievements')}
+BMC: {manager_eval.get('bmc')}
+Summary: {manager_eval.get('summary')}
+
+AI Summary:"""
+
+    headers = {
+        "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "model": "openai/gpt-3.5-turbo",
+        "messages": [
+            {"role": "system", "content": "You are a helpful AI assistant."},
+            {"role": "user", "content": prompt}
+        ]
+    }
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=30.0
+            )
+            response.raise_for_status()
+            result = response.json()
+            summary = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            if not summary:
+                raise HTTPException(status_code=500, detail="Empty AI summary received.")
+            return {"summary": summary.strip()}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"AI summary generation failed: {str(e)}")
