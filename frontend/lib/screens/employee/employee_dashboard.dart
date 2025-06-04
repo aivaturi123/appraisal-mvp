@@ -124,31 +124,38 @@ SizedBox(height: 30),
               SizedBox(height: 20),
               ElevatedButton.icon(
   onPressed: () async {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-    final doc = await FirebaseFirestore.instance
+  try {
+    final query = await FirebaseFirestore.instance
         .collection('evaluations')
-        .doc(uid)
+        .orderBy('timestamp', descending: true) // 🔁 newest first
+        .limit(1) // ✅ only the latest
         .get();
 
-    if (doc.exists) {
-      final data = doc.data();
-      final hasManagerReview = data?['managerReview'] != null;
+    if (query.docs.isNotEmpty) {
+      final doc = query.docs.first;
+      final hasManagerReview = doc['managerReview'] != null;
 
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => ViewSelfEvaluationScreen(
-            employeeId: uid,
+            employeeId: doc.id, // ✅ pass the doc ID
             showManagerReview: hasManagerReview,
           ),
         ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("⚠️ You haven't submitted an evaluation yet.")),
+        SnackBar(content: Text("⚠️ No evaluations found.")),
       );
     }
-  },
+  } catch (e) {
+    print("Error fetching most recent evaluation: $e");
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("❌ Failed to load evaluation.")),
+    );
+  }
+},
   icon: Icon(Icons.visibility),
   label: Text("View Submitted Evaluation"),
 ),
