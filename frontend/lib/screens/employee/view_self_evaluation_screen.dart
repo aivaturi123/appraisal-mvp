@@ -15,132 +15,607 @@ class ViewSelfEvaluationScreen extends StatefulWidget {
   State<ViewSelfEvaluationScreen> createState() => _ViewSelfEvaluationScreenState();
 }
 
-class _ViewSelfEvaluationScreenState extends State<ViewSelfEvaluationScreen> {
+class _ViewSelfEvaluationScreenState extends State<ViewSelfEvaluationScreen>
+    with TickerProviderStateMixin {
   Map<String, dynamic>? evalData;
   bool isLoading = true;
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
+
+  // Brand colors
+  static const Color primaryBlue = Color(0xFF0047BB);
+  static const Color lightBlue = Color(0xFF4A90E2);
+  static const Color darkBlue = Color(0xFF003A9B);
+  static const Color accentGold = Color(0xFFFFD700);
 
   @override
   void initState() {
     super.initState();
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut),
+    );
     loadEvaluation();
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    super.dispose();
   }
 
   Future<void> loadEvaluation() async {
     try {
+      print("🔍 Loading evaluation for employeeId: ${widget.employeeId}");
+      
+      // Use the original working approach - direct document lookup
       final doc = await FirebaseFirestore.instance
           .collection('evaluations')
           .doc(widget.employeeId)
           .get();
 
       if (doc.exists) {
+        final data = doc.data();
+        print("📊 Found evaluation data: ${data?.keys.toList()}");
+        
         setState(() {
-          evalData = doc.data();
+          evalData = data;
           isLoading = false;
         });
+        _fadeController.forward();
       } else {
+        print("⚠️ No evaluation found for document ID: ${widget.employeeId}");
         setState(() {
           isLoading = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("⚠️ No evaluation found")));
+        _showStyledSnackBar("⚠️ No evaluation found for employee ID: ${widget.employeeId}", Colors.orange);
       }
     } catch (e, stack) {
-       print("🔥 Firestore load error: $e");
+      print("🔥 Firestore load error: $e");
       print("📛 Stack trace:\n$stack");
-      print("Error loading evaluation: $e");
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ Failed to load evaluation")));
+      
+      // Handle specific errors
+      String errorMessage = "❌ Failed to load evaluation";
+      if (e.toString().contains('permission-denied')) {
+        errorMessage = "🔒 Permission denied. Check Firestore rules.";
+      } else if (e.toString().contains('unavailable')) {
+        errorMessage = "🌐 Network error. Check your connection.";
+      }
+      
+      setState(() {
+        isLoading = false;
+      });
+      _showStyledSnackBar(errorMessage, Colors.red);
     }
   }
 
-  Widget buildField(String label, String? value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: TextFormField(
-        initialValue: value ?? '',
-        readOnly: true,
-        decoration: InputDecoration(
-          labelText: label,
-          border: OutlineInputBorder(),
+  void _showStyledSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: TextStyle(fontWeight: FontWeight.w600)),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  Widget _buildGradientContainer({
+    required Widget child,
+    required List<Color> gradientColors,
+    double borderRadius = 16,
+    EdgeInsets? padding,
+  }) {
+    return Container(
+      padding: padding ?? EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: gradientColors,
+        ),
+        borderRadius: BorderRadius.circular(borderRadius),
+        boxShadow: [
+          BoxShadow(
+            color: gradientColors.first.withOpacity(0.3),
+            blurRadius: 15,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return _buildGradientContainer(
+      gradientColors: [primaryBlue, lightBlue],
+      borderRadius: 12,
+      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.white, size: 28),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStyledField(String label, String? value, {IconData? icon}) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (icon != null)
+            Row(
+              children: [
+                Icon(icon, size: 18, color: primaryBlue),
+                SizedBox(width: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: darkBlue,
+                  ),
+                ),
+              ],
+            )
+          else
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: darkBlue,
+              ),
+            ),
+          SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: lightBlue.withOpacity(0.3), width: 2),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white,
+                  Colors.blue.shade50,
+                ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: primaryBlue.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: TextFormField(
+              initialValue: value ?? 'Not provided',
+              readOnly: true,
+              maxLines: value != null && value.length > 100 ? null : 1,
+              style: TextStyle(
+                fontSize: 16,
+                color: value != null ? Colors.black87 : Colors.grey.shade600,
+                fontWeight: value != null ? FontWeight.w500 : FontWeight.normal,
+              ),
+              decoration: InputDecoration(
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.all(16),
+                hintText: value == null ? 'No data available' : null,
+                hintStyle: TextStyle(color: Colors.grey.shade500),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScoreCard(String category, dynamic score, String? comment) {
+    final scoreValue = score?.toString() ?? 'N/A';
+    final scoreNum = int.tryParse(scoreValue) ?? 0;
+    
+    return Card(
+      elevation: 8,
+      shadowColor: primaryBlue.withOpacity(0.3),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.white, Colors.blue.shade50],
+          ),
+        ),
+        padding: EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    category,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: darkBlue,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: scoreNum >= 4
+                          ? [Colors.green, Colors.green.shade300]
+                          : scoreNum >= 3
+                              ? [accentGold, Colors.yellow.shade300]
+                              : [Colors.red, Colors.red.shade300],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    scoreValue,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (comment != null && comment.isNotEmpty) ...[
+              SizedBox(height: 12),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Text(
+                  comment,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.black87,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
   }
 
-  Widget buildManagerReviewSection() {
+  Widget _buildManagerReviewSection() {
     final managerReview = evalData?['managerReview'];
-    if (managerReview == null) return Text("Manager review not yet submitted.");
+    if (managerReview == null) {
+      return _buildGradientContainer(
+        gradientColors: [Colors.orange.shade100, Colors.orange.shade200],
+        child: Row(
+          children: [
+            Icon(Icons.pending, color: Colors.orange.shade700, size: 24),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                "Manager review is pending submission",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.orange.shade800,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("🧑‍💼 Manager's Review", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        SizedBox(height: 10),
-        for (var key in (managerReview['scores'] as Map).keys)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              buildField("Manager Score - $key", managerReview['scores'][key].toString()),
-              buildField("Manager Comment - $key", managerReview['comments'][key]),
-            ],
+        _buildSectionHeader("🧑‍💼 Manager's Review", Icons.supervisor_account),
+        SizedBox(height: 20),
+        
+        // Manager scores and comments
+        if (managerReview['scores'] != null)
+          for (var key in (managerReview['scores'] as Map).keys)
+            _buildScoreCard(
+              "Manager - $key",
+              managerReview['scores'][key],
+              managerReview['comments']?[key],
+            ),
+        
+        SizedBox(height: 20),
+        _buildStyledField("Manager Summary", managerReview['summary'], icon: Icons.summarize),
+        
+        // AI Summary if available
+        if (managerReview['aiSummary'] != null) ...[
+          SizedBox(height: 20),
+          _buildGradientContainer(
+            gradientColors: [Colors.purple.shade100, Colors.purple.shade200],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.psychology, color: Colors.purple.shade700, size: 24),
+                    SizedBox(width: 12),
+                    Text(
+                      "🤖 AI Performance Insights",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.purple.shade800,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+                Text(
+                  managerReview['aiSummary'],
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.purple.shade900,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
           ),
-        Divider(height: 30),
-        buildField("Manager Summary", managerReview['summary']),
+        ],
       ],
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [primaryBlue, lightBlue],
+              ),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                strokeWidth: 3,
+              ),
+            ),
+          ),
+          SizedBox(height: 24),
+          Text(
+            "Loading your evaluation...",
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: primaryBlue,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Your Submitted Evaluation")),
-      body: isLoading
-          ? Center(child: CircularProgressIndicator())
-          : evalData == null
-              ? Center(child: Text("No evaluation found."))
-              : SingleChildScrollView(
-                  padding: EdgeInsets.all(20),
-                  child: Column(
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        title: Text(
+          "Your Performance Evaluation",
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        actions: [
+          // Debug info button
+          IconButton(
+            icon: Icon(Icons.info_outline, color: Colors.white),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: Text("Debug Info"),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("📝 Scores & Comments", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text("Employee ID: ${widget.employeeId}"),
+                      Text("Show Manager Review: ${widget.showManagerReview}"),
+                      Text("Collection: evaluations"),
+                      Text("Document ID: ${widget.employeeId}"),
                       SizedBox(height: 10),
-                      for (var key in (evalData!['scores'] as Map).keys)
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            buildField("Score - $key", evalData!['scores'][key].toString()),
-                            buildField("Comment - $key", evalData!['comments'][key]),
-                          ],
-                        ),
-                      Divider(height: 30),
-                      Text("🔍 SWOT Analysis", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      buildField("Strengths", evalData!['swot']['strengths']),
-                      buildField("Weaknesses", evalData!['swot']['weaknesses']),
-                      buildField("Opportunities", evalData!['swot']['opportunities']),
-                      buildField("Threats", evalData!['swot']['threats']),
-                      Divider(height: 30),
-                      Text("🏆 Achievements & Challenges", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      buildField("Accomplishments", evalData!['achievements'][0]),
-                      buildField("Challenges", evalData!['achievements'][1]),
-                      buildField("Proud Of", evalData!['achievements'][2]),
-                      Divider(height: 30),
-                      Text("📌 Business Model Canvas - Your Gameboard", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      buildField( "Customer Segments (Who do you help the most?)", evalData!['bmc'][0]),
-                      buildField( "Value Proposition (What value do you deliver?)", evalData!['bmc'][1]),
-                      buildField( "Channels (How do you reach your customers?)", evalData!['bmc'][2]),
-                      buildField( "Customer Relationships (How do you engage with them?)", evalData!['bmc'][3]),
-                      buildField( "Revenue Streams (How do you make money?)", evalData!['bmc'][4]),
-                      buildField( "Key Resources (What do you need to deliver value?)", evalData!['bmc'][5]),
-                      buildField( "Key Activities (What do you do to create value?)", evalData!['bmc'][6]),
-                      buildField( "Key Partnerships (Who helps you succeed?)", evalData!['bmc'][7]),
-                      buildField( "Cost Structure (What are your costs?)", evalData!['bmc'][8]),
-                      Divider(height: 30),
-                      Text("📌 Summary & Next Steps", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      buildField("What Went Well", evalData!['summary']['whatWentWell']),
-                      buildField("Areas to Power Up", evalData!['summary']['powerUp']),
-                      buildField("Next Steps", evalData!['summary']['nextSteps']),
-                      SizedBox(height: 30),
-                      if (widget.showManagerReview) buildManagerReviewSection(),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          setState(() {
+                            isLoading = true;
+                            evalData = null;
+                          });
+                          loadEvaluation(); // Retry loading
+                        },
+                        child: Text("Retry Load"),
+                      ),
                     ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text("Close"),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [primaryBlue, lightBlue],
+            ),
+          ),
+        ),
+        elevation: 0,
+        iconTheme: IconThemeData(color: Colors.white),
+      ),
+      body: isLoading
+          ? _buildLoadingState()
+          : evalData == null
+              ? Center(
+                  child: _buildGradientContainer(
+                    gradientColors: [Colors.red.shade100, Colors.red.shade200],
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.error_outline, size: 48, color: Colors.red.shade700),
+                        SizedBox(height: 16),
+                        Text(
+                          "No evaluation found",
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red.shade800,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          "Please complete your self-evaluation first",
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.red.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Self-Evaluation Scores & Comments
+                        _buildSectionHeader("📝 Your Self-Assessment", Icons.assessment),
+                        SizedBox(height: 20),
+                        
+                        if (evalData!['scores'] != null)
+                          for (var key in (evalData!['scores'] as Map).keys)
+                            _buildScoreCard(
+                              key,
+                              evalData!['scores'][key],
+                              evalData!['comments']?[key],
+                            ),
+
+                        SizedBox(height: 32),
+
+                        // SWOT Analysis
+                        _buildSectionHeader("🔍 SWOT Analysis", Icons.analytics),
+                        SizedBox(height: 20),
+                        _buildStyledField("💪 Strengths", evalData!['swot']?['strengths'], icon: Icons.trending_up),
+                        _buildStyledField("⚠️ Weaknesses", evalData!['swot']?['weaknesses'], icon: Icons.trending_down),
+                        _buildStyledField("🚀 Opportunities", evalData!['swot']?['opportunities'], icon: Icons.rocket_launch),
+                        _buildStyledField("⚡ Threats", evalData!['swot']?['threats'], icon: Icons.warning),
+
+                        SizedBox(height: 32),
+
+                        // Achievements & Challenges
+                        _buildSectionHeader("🏆 Achievements & Challenges", Icons.emoji_events),
+                        SizedBox(height: 20),
+                        _buildStyledField("🎯 Accomplishments", evalData!['achievements']?[0], icon: Icons.check_circle),
+                        _buildStyledField("🔥 Challenges", evalData!['achievements']?[1], icon: Icons.bolt),
+                        _buildStyledField("❤️ Most Proud Of", evalData!['achievements']?[2], icon: Icons.favorite),
+
+                        SizedBox(height: 32),
+
+                        // Business Model Canvas
+                        _buildSectionHeader("📌 Business Model Canvas", Icons.dashboard),
+                        SizedBox(height: 20),
+                        _buildStyledField("👥 Customer Segments", evalData!['bmc']?[0]),
+                        _buildStyledField("💎 Value Proposition", evalData!['bmc']?[1]),
+                        _buildStyledField("📺 Channels", evalData!['bmc']?[2]),
+                        _buildStyledField("🤝 Customer Relationships", evalData!['bmc']?[3]),
+                        _buildStyledField("💰 Revenue Streams", evalData!['bmc']?[4]),
+                        _buildStyledField("🔧 Key Resources", evalData!['bmc']?[5]),
+                        _buildStyledField("⚙️ Key Activities", evalData!['bmc']?[6]),
+                        _buildStyledField("🤝 Key Partnerships", evalData!['bmc']?[7]),
+                        _buildStyledField("💸 Cost Structure", evalData!['bmc']?[8]),
+
+                        SizedBox(height: 32),
+
+                        // Summary & Next Steps
+                        _buildSectionHeader("📋 Summary & Next Steps", Icons.playlist_add_check),
+                        SizedBox(height: 20),
+                        _buildStyledField("✅ What Went Well", evalData!['summary']?['whatWentWell'], icon: Icons.thumb_up),
+                        _buildStyledField("⚡ Areas to Power Up", evalData!['summary']?['powerUp'], icon: Icons.power_settings_new),
+                        _buildStyledField("🎯 Next Steps", evalData!['summary']?['nextSteps'], icon: Icons.arrow_forward),
+
+                        SizedBox(height: 32),
+
+                        // Manager Review Section
+                        if (widget.showManagerReview) ...[
+                          _buildManagerReviewSection(),
+                          SizedBox(height: 32),
+                        ],
+
+                        // Footer
+                        _buildGradientContainer(
+                          gradientColors: [primaryBlue.withOpacity(0.1), lightBlue.withOpacity(0.1)],
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, color: primaryBlue),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  "Keep growing and improving! Your journey matters.",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: primaryBlue,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
     );
