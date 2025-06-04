@@ -18,7 +18,6 @@ void main() async {
   runApp(EmployeeEvalApp());
 }
 
-
 class EmployeeEvalApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -26,55 +25,87 @@ class EmployeeEvalApp extends StatelessWidget {
       title: 'Employee Evaluation System',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-  colorScheme: ColorScheme.fromSeed(
-    seedColor: Color(0xFF0047BB),
-    brightness: Brightness.light,
-  ),
-  useMaterial3: true,
-),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Color(0xFF0047BB),
+          brightness: Brightness.light,
+        ),
+        useMaterial3: true,
+      ),
       initialRoute: '/',
       onGenerateRoute: (settings) {
-        switch (settings.name) {
-          case '/':
-            return MaterialPageRoute(builder: (_) => LoginScreen());
+        try {
+          // Helper function to safely convert arguments
+          Map<String, dynamic> getSafeArgs(dynamic rawArgs) {
+            if (rawArgs == null) return <String, dynamic>{};
+            
+            if (rawArgs is Map<String, dynamic>) {
+              return rawArgs;
+            } else if (rawArgs is Map) {
+              return Map<String, dynamic>.from(
+                rawArgs.map((key, value) => MapEntry(key.toString(), value))
+              );
+            }
+            return <String, dynamic>{};
+          }
 
-          case '/employee-login':
-            return MaterialPageRoute(builder: (_) => EmployeeLogin());
+          final args = getSafeArgs(settings.arguments);
 
-          case '/manager-login':
-            return MaterialPageRoute(builder: (_) => ManagerLogin());
+          switch (settings.name) {
+            case '/':
+              return MaterialPageRoute(builder: (_) => LoginScreen());
 
-          case '/employee-dashboard':
-            final args = settings.arguments as Map<String, dynamic>;
-            return MaterialPageRoute(
-              builder: (_) => EmployeeDashboard(
-                employeeName: args['employeeName'],
-              ),
-            );
+            case '/employee-login':
+              return MaterialPageRoute(builder: (_) => EmployeeLogin());
 
-          case '/self-evaluation':
-            final args = settings.arguments as Map<String, dynamic>;
-            return MaterialPageRoute(
-              builder: (_) => SelfEvaluationForm(
-                employeeName: args['employeeName'],
-              ),
-            );
+            case '/manager-login':
+              return MaterialPageRoute(builder: (_) => ManagerLogin());
 
-          case '/manager-dashboard':
-            return MaterialPageRoute(builder: (_) => ManagerDashboard());
+            case '/employee-dashboard':
+              return MaterialPageRoute(
+                builder: (_) => EmployeeDashboard(
+                  employeeName: args['employeeName'] ?? 'Unknown Employee'
+                ),
+              );
 
-          case '/evaluate-employee':
-            final args = settings.arguments as Map<String, dynamic>;
-            return MaterialPageRoute(
-              builder: (_) => EvaluateEmployeeScreen(evaluation: args),
-            );
+            case '/self-evaluation':
+              return MaterialPageRoute(
+                builder: (_) => SelfEvaluationForm(
+                  employeeName: args['employeeName'] ?? 'Unknown Employee'
+                ),
+              );
 
-          default:
-            return MaterialPageRoute(
-              builder: (_) => Scaffold(
-                body: Center(child: Text('Unknown route: ${settings.name}')),
-              ),
-            );
+            case '/manager-dashboard':
+              return MaterialPageRoute(builder: (_) => ManagerDashboard());
+
+            case '/evaluate-employee':
+              if (args.isNotEmpty) {
+                return MaterialPageRoute(
+                  builder: (_) => EvaluateEmployeeScreen(evaluation: args),
+                );
+              } else {
+                return MaterialPageRoute(
+                  builder: (_) => Scaffold(
+                    body: Center(
+                      child: Text('❌ Invalid arguments for evaluate-employee')
+                    ),
+                  ),
+                );
+              }
+
+            default:
+              return MaterialPageRoute(
+                builder: (_) => Scaffold(
+                  body: Center(child: Text('Unknown route: ${settings.name}')),
+                ),
+              );
+          }
+        } catch (e) {
+          print('Route error: $e'); // For debugging
+          return MaterialPageRoute(
+            builder: (_) => Scaffold(
+              body: Center(child: Text('❌ Route error: $e')),
+            ),
+          );
         }
       },
     );

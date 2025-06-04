@@ -98,10 +98,10 @@ class _SelfEvaluationFormState extends State<SelfEvaluationForm> {
 
     try {
       await FirebaseFirestore.instance
-    
-    .collection('evaluations')
-    .doc(uid)
-    .set(data);
+  .collection('evaluations')
+  .doc(uid)
+  .set({...data, 'id': uid});
+
 
 
       final jsonSafeData = {
