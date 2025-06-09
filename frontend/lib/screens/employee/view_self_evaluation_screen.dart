@@ -156,7 +156,19 @@ class _ViewSelfEvaluationScreenState extends State<ViewSelfEvaluationScreen>
     );
   }
 
-  Widget _buildStyledField(String label, String? value, {IconData? icon}) {
+  Widget _buildStyledField(String label, dynamic value, {IconData? icon}) {
+    // Handle different types of values safely
+    String displayValue;
+    if (value == null) {
+      displayValue = 'Not provided';
+    } else if (value is String) {
+      displayValue = value.isEmpty ? 'Not provided' : value;
+    } else if (value is Map || value is List) {
+      displayValue = value.toString();
+    } else {
+      displayValue = value.toString();
+    }
+
     return Container(
       margin: EdgeInsets.only(bottom: 16),
       child: Column(
@@ -208,18 +220,18 @@ class _ViewSelfEvaluationScreenState extends State<ViewSelfEvaluationScreen>
               ],
             ),
             child: TextFormField(
-              initialValue: value ?? 'Not provided',
+              initialValue: displayValue,
               readOnly: true,
-              maxLines: value != null && value.length > 100 ? null : 1,
+              maxLines: displayValue.length > 100 ? null : 1,
               style: TextStyle(
                 fontSize: 16,
-                color: value != null ? Colors.black87 : Colors.grey.shade600,
-                fontWeight: value != null ? FontWeight.w500 : FontWeight.normal,
+                color: displayValue != 'Not provided' ? Colors.black87 : Colors.grey.shade600,
+                fontWeight: displayValue != 'Not provided' ? FontWeight.w500 : FontWeight.normal,
               ),
               decoration: InputDecoration(
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.all(16),
-                hintText: value == null ? 'No data available' : null,
+                hintText: displayValue == 'Not provided' ? 'No data available' : null,
                 hintStyle: TextStyle(color: Colors.grey.shade500),
               ),
             ),
@@ -286,25 +298,26 @@ class _ViewSelfEvaluationScreenState extends State<ViewSelfEvaluationScreen>
                 ),
               ],
             ),
-            if (comment != null && comment.isNotEmpty) ...[
-              SizedBox(height: 12),
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Text(
-                  comment,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.black87,
-                    height: 1.4,
+            if (comment != null && comment.isNotEmpty) 
+              ...[
+                SizedBox(height: 12),
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Text(
+                    comment,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.black87,
+                      height: 1.4,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
           ],
         ),
       ),
@@ -342,52 +355,117 @@ class _ViewSelfEvaluationScreenState extends State<ViewSelfEvaluationScreen>
         SizedBox(height: 20),
         
         // Manager scores and comments
-        if (managerReview['scores'] != null)
+        if (managerReview['scores'] != null && managerReview['scores'] is Map)
           for (var key in (managerReview['scores'] as Map).keys)
             _buildScoreCard(
               "Manager - $key",
               managerReview['scores'][key],
-              managerReview['comments']?[key],
+              managerReview['comments'] is Map ? managerReview['comments'][key] : null,
             ),
         
         SizedBox(height: 20),
-        _buildStyledField("Manager Summary", managerReview['summary'], icon: Icons.summarize),
         
-        // AI Summary if available
-        if (managerReview['aiSummary'] != null) ...[
-          SizedBox(height: 20),
-          _buildGradientContainer(
-            gradientColors: [Colors.purple.shade100, Colors.purple.shade200],
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.psychology, color: Colors.purple.shade700, size: 24),
-                    SizedBox(width: 12),
-                    Text(
-                      "🤖 AI Performance Insights",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.purple.shade800,
+        // Handle manager summary - check if it's a Map or String
+        if (managerReview['summary'] != null) 
+          ...[
+            if (managerReview['summary'] is Map) 
+              ...[
+                // If summary is a Map, show its components
+                () {
+                  final summaryMap = managerReview['summary'] as Map<String, dynamic>;
+                  return Column(
+                    children: [
+                      _buildStyledField("Manager Summary - What Went Well", summaryMap['whatWentWell'], icon: Icons.thumb_up),
+                      _buildStyledField("Manager Summary - Areas to Power Up", summaryMap['powerUp'], icon: Icons.power_settings_new),
+                      _buildStyledField("Manager Summary - Next Steps", summaryMap['nextSteps'], icon: Icons.arrow_forward),
+                    ],
+                  );
+                }(),
+              ] 
+            else 
+              ...[
+                // If summary is a String, show it directly
+                _buildStyledField("Manager Summary", managerReview['summary'], icon: Icons.summarize),
+              ]
+          ],
+        
+        // AI Summary if available - also handle both Map and String cases
+        if (managerReview['aiSummary'] != null) 
+          ...[
+            SizedBox(height: 20),
+            _buildGradientContainer(
+              gradientColors: [Colors.purple.shade100, Colors.purple.shade200],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.psychology, color: Colors.purple.shade700, size: 24),
+                      SizedBox(width: 12),
+                      Text(
+                        "🤖 AI Performance Insights",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.purple.shade800,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 12),
-                Text(
-                  managerReview['aiSummary'],
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.purple.shade900,
-                    height: 1.5,
+                    ],
                   ),
-                ),
-              ],
+                  SizedBox(height: 12),
+                  Text(
+                    managerReview['aiSummary'] is String 
+                      ? managerReview['aiSummary'] 
+                      : managerReview['aiSummary'].toString(),
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.purple.shade900,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+
+        // Show global AI Summary if it exists at root level
+        if (evalData?['aiSummary'] != null) 
+          ...[
+            SizedBox(height: 20),
+            _buildGradientContainer(
+              gradientColors: [Colors.green.shade100, Colors.green.shade200],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.auto_awesome, color: Colors.green.shade700, size: 24),
+                      SizedBox(width: 12),
+                      Text(
+                        "🤖 Overall AI Assessment",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green.shade800,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    evalData!['aiSummary'] is String 
+                      ? evalData!['aiSummary'] 
+                      : evalData!['aiSummary'].toString(),
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.green.shade900,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
       ],
     );
   }
@@ -540,7 +618,7 @@ class _ViewSelfEvaluationScreenState extends State<ViewSelfEvaluationScreen>
                             _buildScoreCard(
                               key,
                               evalData!['scores'][key],
-                              evalData!['comments']?[key],
+                              evalData!['comments'] is Map ? evalData!['comments'][key] : null,
                             ),
 
                         SizedBox(height: 32),
@@ -558,24 +636,27 @@ class _ViewSelfEvaluationScreenState extends State<ViewSelfEvaluationScreen>
                         // Achievements & Challenges
                         _buildSectionHeader("🏆 Achievements & Challenges", Icons.emoji_events),
                         SizedBox(height: 20),
-                        _buildStyledField("🎯 Accomplishments", evalData!['achievements']?[0], icon: Icons.check_circle),
-                        _buildStyledField("🔥 Challenges", evalData!['achievements']?[1], icon: Icons.bolt),
-                        _buildStyledField("❤️ Most Proud Of", evalData!['achievements']?[2], icon: Icons.favorite),
+                        _buildStyledField("🎯 Accomplishments", evalData!['achievements'] is List && (evalData!['achievements'] as List).isNotEmpty ? evalData!['achievements'][0] : null, icon: Icons.check_circle),
+                        _buildStyledField("🔥 Challenges", evalData!['achievements'] is List && (evalData!['achievements'] as List).length > 1 ? evalData!['achievements'][1] : null, icon: Icons.bolt),
+                        _buildStyledField("❤️ Most Proud Of", evalData!['achievements'] is List && (evalData!['achievements'] as List).length > 2 ? evalData!['achievements'][2] : null, icon: Icons.favorite),
 
                         SizedBox(height: 32),
 
                         // Business Model Canvas
                         _buildSectionHeader("📌 Business Model Canvas", Icons.dashboard),
                         SizedBox(height: 20),
-                        _buildStyledField("👥 Customer Segments", evalData!['bmc']?[0]),
-                        _buildStyledField("💎 Value Proposition", evalData!['bmc']?[1]),
-                        _buildStyledField("📺 Channels", evalData!['bmc']?[2]),
-                        _buildStyledField("🤝 Customer Relationships", evalData!['bmc']?[3]),
-                        _buildStyledField("💰 Revenue Streams", evalData!['bmc']?[4]),
-                        _buildStyledField("🔧 Key Resources", evalData!['bmc']?[5]),
-                        _buildStyledField("⚙️ Key Activities", evalData!['bmc']?[6]),
-                        _buildStyledField("🤝 Key Partnerships", evalData!['bmc']?[7]),
-                        _buildStyledField("💸 Cost Structure", evalData!['bmc']?[8]),
+                        if (evalData!['bmc'] is List) 
+                          ...[
+                            _buildStyledField("👥 Customer Segments", (evalData!['bmc'] as List).isNotEmpty ? evalData!['bmc'][0] : null),
+                            _buildStyledField("💎 Value Proposition", (evalData!['bmc'] as List).length > 1 ? evalData!['bmc'][1] : null),
+                            _buildStyledField("📺 Channels", (evalData!['bmc'] as List).length > 2 ? evalData!['bmc'][2] : null),
+                            _buildStyledField("🤝 Customer Relationships", (evalData!['bmc'] as List).length > 3 ? evalData!['bmc'][3] : null),
+                            _buildStyledField("💰 Revenue Streams", (evalData!['bmc'] as List).length > 4 ? evalData!['bmc'][4] : null),
+                            _buildStyledField("🔧 Key Resources", (evalData!['bmc'] as List).length > 5 ? evalData!['bmc'][5] : null),
+                            _buildStyledField("⚙️ Key Activities", (evalData!['bmc'] as List).length > 6 ? evalData!['bmc'][6] : null),
+                            _buildStyledField("🤝 Key Partnerships", (evalData!['bmc'] as List).length > 7 ? evalData!['bmc'][7] : null),
+                            _buildStyledField("💸 Cost Structure", (evalData!['bmc'] as List).length > 8 ? evalData!['bmc'][8] : null),
+                          ],
 
                         SizedBox(height: 32),
 
@@ -589,10 +670,11 @@ class _ViewSelfEvaluationScreenState extends State<ViewSelfEvaluationScreen>
                         SizedBox(height: 32),
 
                         // Manager Review Section
-                        if (widget.showManagerReview) ...[
-                          _buildManagerReviewSection(),
-                          SizedBox(height: 32),
-                        ],
+                        if (widget.showManagerReview) 
+                          ...[
+                            _buildManagerReviewSection(),
+                            SizedBox(height: 32),
+                          ],
 
                         // Footer
                         _buildGradientContainer(

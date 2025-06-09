@@ -183,7 +183,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         shaderCallback: (bounds) => LinearGradient(
                           colors: [
                             Color(0xFF0047BB),
-                            Color(0xFF0047BB),
+                            Color.fromARGB(255, 3, 72, 183),
                           ],
                         ).createShader(bounds),
                         child: Text(

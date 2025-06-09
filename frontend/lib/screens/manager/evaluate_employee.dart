@@ -123,50 +123,111 @@ class _EvaluateEmployeeScreenState extends State<EvaluateEmployeeScreen> {
     _wentWellController.text = summary['whatWentWell']?.toString() ?? '';
     _powerUpController.text = summary['powerUp']?.toString() ?? '';
     _nextStepsController.text = summary['nextSteps']?.toString() ?? '';
+
+    // Initialize manager achievements and BMC if they exist
+    final achievements = managerReview['achievements'];
+    if (achievements is List) {
+      for (int i = 0; i < achievements.length && i < _managerAchievements.length; i++) {
+        _managerAchievements[i].text = achievements[i]?.toString() ?? '';
+      }
+    }
+
+    final bmc = managerReview['bmc'];
+    if (bmc is List) {
+      for (int i = 0; i < bmc.length && i < _managerBMC.length; i++) {
+        _managerBMC[i].text = bmc[i]?.toString() ?? '';
+      }
+    }
   }
 
   Future<void> submitManagerEvaluation() async {
-    if (!_formKey.currentState!.validate()) return;
+  if (!_formKey.currentState!.validate()) return;
 
-    setState(() => isSubmitting = true);
+  setState(() => isSubmitting = true);
 
-    try {
-      final docRef = FirebaseFirestore.instance.collection('evaluations').doc(widget.evaluation['id']);
+  try {
+    final docRef = FirebaseFirestore.instance.collection('evaluations').doc(widget.evaluation['id']);
 
-      final commentsMap = <String, String>{};
-      for (var crit in _criteria) {
-        commentsMap[crit] = _managerCommentControllers[crit]!.text.trim();
-      }
+    final commentsMap = <String, String>{};
+    for (var crit in _criteria) {
+      commentsMap[crit] = _managerCommentControllers[crit]!.text.trim();
+    }
 
-      await docRef.set({
-        'managerReview': {
-          'scores': _managerScores,
-          'comments': commentsMap,
-          'swot': {
-            'strengths': _strengthsController.text.trim(),
-            'weaknesses': _weaknessesController.text.trim(),
-            'opportunities': _opportunitiesController.text.trim(),
-            'threats': _threatsController.text.trim(),
-          },
-          'achievements': _managerAchievements.map((c) => c.text.trim()).toList(),
-          'bmc': _managerBMC.map((c) => c.text.trim()).toList(),
-          'summary': {
-            'whatWentWell': _wentWellController.text.trim(),
-            'powerUp': _powerUpController.text.trim(),
-            'nextSteps': _nextStepsController.text.trim(),
-          },
-          'timestamp': Timestamp.now(),
-        }
-      }, SetOptions(merge: true));
+    // Prepare manager review data
+    final managerReviewData = {
+      'scores': _managerScores,
+      'comments': commentsMap,
+      'swot': {
+        'strengths': _strengthsController.text.trim(),
+        'weaknesses': _weaknessesController.text.trim(),
+        'opportunities': _opportunitiesController.text.trim(),
+        'threats': _threatsController.text.trim(),
+      },
+      'achievements': _managerAchievements.map((c) => c.text.trim()).toList(),
+      'bmc': _managerBMC.map((c) => c.text.trim()).toList(),
+      'summary': {
+        'whatWentWell': _wentWellController.text.trim(),
+        'powerUp': _powerUpController.text.trim(),
+        'nextSteps': _nextStepsController.text.trim(),
+      },
+      'reviewedBy': 'current_manager_id', // Add actual manager ID here
+      'timestamp': Timestamp.now(),
+      'isComplete': true, // Add this flag for easy filtering
+    };
 
-      // Get updated document
-      final updatedData = await docRef.get();
-      final data = updatedData.data();
+    // CRITICAL: Use a transaction to ensure atomic updates
+    await FirebaseFirestore.instance.runTransaction((transaction) async {
+      // Get the current document
+      final docSnapshot = await transaction.get(docRef);
       
-      if (data == null) {
-        throw Exception('Failed to retrieve updated evaluation data');
+      if (!docSnapshot.exists) {
+        throw Exception('Evaluation document not found');
       }
 
+      // Update with manager review data
+      transaction.update(docRef, {
+        'managerReview': managerReviewData,
+        'status': 'manager_completed',
+        'managerCompletedAt': Timestamp.now(),
+        'lastUpdated': Timestamp.now(),
+        'hasManagerReview': true, // Important flag for dashboard filtering
+      });
+    });
+
+    print('✅ Manager evaluation saved successfully with status: manager_completed');
+
+    // Show success message
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.white),
+            SizedBox(width: 8),
+            Text("✅ Manager evaluation completed successfully!"),
+          ],
+        ),
+        backgroundColor: Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      )
+    );
+
+    // Wait a moment for Firestore to propagate
+    await Future.delayed(const Duration(milliseconds: 1000));
+
+    // Get the updated document to verify the save
+    final updatedDoc = await docRef.get();
+    if (!updatedDoc.exists || updatedDoc.data()?['hasManagerReview'] != true) {
+      throw Exception('Failed to save manager review properly');
+    }
+
+    final updatedData = updatedDoc.data()!;
+    print('✅ Verified: Document updated with hasManagerReview = ${updatedData['hasManagerReview']}');
+
+    // Now process AI summary (only if manager review is saved)
+    String aiSummary = '';
+    try {
       // Clean data for AI processing
       dynamic clean(dynamic d) {
         if (d is Timestamp) return d.toDate().toIso8601String();
@@ -179,77 +240,135 @@ class _EvaluateEmployeeScreenState extends State<EvaluateEmployeeScreen> {
         return d;
       }
 
-      final cleanedManager = clean(data['managerReview'] ?? {});
+      final cleanedManager = clean(updatedData['managerReview'] ?? {});
       final cleanedEmployee = clean({
-        'name': data['name'],
-        'scores': data['scores'],
-        'comments': data['comments'],
-        'swot': data['swot'],
-        'achievements': data['achievements'],
-        'bmc': data['bmc'],
-        'summary': data['summary'],
+        'name': updatedData['name'],
+        'scores': updatedData['scores'],
+        'comments': updatedData['comments'],
+        'swot': updatedData['swot'],
+        'achievements': updatedData['achievements'],
+        'bmc': updatedData['bmc'],
+        'summary': updatedData['summary'],
       });
 
-      // Call AI service
-      try {
-        final aiResponse = await http.post(
-          Uri.parse('http://localhost:8000/generate-ai-summary'),
-          headers: {'Content-Type': 'application/json'},
-          body: json.encode({'employee': cleanedEmployee, 'manager': cleanedManager}),
-        );
+      print('🤖 Calling AI service...');
+      final aiResponse = await http.post(
+        Uri.parse('http://localhost:8000/generate-ai-summary'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'employee': cleanedEmployee, 
+          'manager': cleanedManager
+        }),
+      ).timeout(const Duration(seconds: 30));
 
-        String aiSummary = '';
-        if (aiResponse.statusCode == 200) {
-          final responseData = json.decode(aiResponse.body);
-          aiSummary = responseData['summary']?.toString() ?? 'AI summary not available';
-        } else {
-          aiSummary = 'AI summary service unavailable';
-        }
-
-        // Update document with AI summary
-        await docRef.update({'aiSummary': aiSummary});
-
-        // Navigate to comparison view
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ComparisonView(
-              employeeEval: cleanedEmployee as Map<String, dynamic>,
-              managerReview: cleanedManager as Map<String, dynamic>,
-              aiFeedback: aiSummary,
-            ),
-          ),
-        );
-      } catch (aiError) {
-        print('AI service error: $aiError');
-        // Continue without AI summary
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ComparisonView(
-              employeeEval: cleanedEmployee as Map<String, dynamic>,
-              managerReview: cleanedManager as Map<String, dynamic>,
-              aiFeedback: 'AI feedback unavailable',
-            ),
-          ),
-        );
+      if (aiResponse.statusCode == 200) {
+        final responseData = json.decode(aiResponse.body);
+        aiSummary = responseData['summary']?.toString() ?? 'AI summary not available';
+        print('✅ AI summary generated successfully');
+      } else {
+        print('⚠️ AI service responded with status: ${aiResponse.statusCode}');
+        aiSummary = 'AI summary service unavailable';
       }
-    } catch (e) {
-      print('Submission error: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("❌ Error: $e"),
-          backgroundColor: Colors.red.shade600,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        )
-      );
-    } finally {
-      if (mounted) setState(() => isSubmitting = false);
+    } catch (aiError) {
+      print('⚠️ AI service error: $aiError');
+      aiSummary = 'AI feedback unavailable - service error';
     }
+
+    // Final update: Add AI summary and mark as fully completed
+    await docRef.update({
+      'aiSummary': aiSummary,
+      'status': 'completed',
+      'finalizedAt': Timestamp.now(),
+      'lastUpdated': Timestamp.now(),
+    });
+
+    print('✅ Evaluation finalized with status: completed');
+
+    // Navigate to comparison view with cleaned data
+    if (!mounted) return;
+    
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ComparisonView(
+          employeeEval: updatedData['scores'] != null ? {
+            'name': updatedData['name'],
+            'scores': updatedData['scores'],
+            'comments': updatedData['comments'],
+            'swot': updatedData['swot'],
+            'achievements': updatedData['achievements'],
+            'bmc': updatedData['bmc'],
+            'summary': updatedData['summary'],
+          } : {},
+          managerReview: updatedData['managerReview'] ?? {},
+          aiFeedback: aiSummary,
+        ),
+      ),
+    );
+
+  } catch (e) {
+    print('❌ Submission error: $e');
+    if (!mounted) return;
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("❌ Error submitting evaluation: $e"),
+        backgroundColor: Colors.red.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 5),
+      )
+    );
+  } finally {
+    if (mounted) setState(() => isSubmitting = false);
+  }
+}
+
+  Widget _buildStatusChip() {
+    final status = widget.evaluation['status']?.toString() ?? 'pending';
+    
+    Color chipColor;
+    String statusText;
+    IconData statusIcon;
+    
+    switch (status) {
+      case 'manager_completed':
+        chipColor = Colors.green;
+        statusText = 'Evaluated by Manager';
+        statusIcon = Icons.check_circle;
+        break;
+      case 'completed':
+      case 'finalized':
+        chipColor = Colors.blue;
+        statusText = 'Review Complete';
+        statusIcon = Icons.task_alt;
+        break;
+      case 'employee_completed':
+        chipColor = Colors.orange;
+        statusText = 'Pending Manager Review';
+        statusIcon = Icons.pending;
+        break;
+      default:
+        chipColor = Colors.grey;
+        statusText = 'Pending Employee Response';
+        statusIcon = Icons.schedule;
+    }
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Chip(
+        avatar: Icon(statusIcon, color: Colors.white, size: 18),
+        label: Text(
+          statusText,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        backgroundColor: chipColor,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      ),
+    );
   }
 
   Widget _sectionTitle(String title) => Container(
@@ -370,6 +489,9 @@ class _EvaluateEmployeeScreenState extends State<EvaluateEmployeeScreen> {
         child: Form(
           key: _formKey,
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // Add status chip at the top
+            _buildStatusChip(),
+            
             _sectionTitle("⭐ Step 1: Performance Scorecard"),
             ..._criteria.map((crit) {
               final scores = _convertToStringMap(eval['scores']);
@@ -492,102 +614,99 @@ class _EvaluateEmployeeScreenState extends State<EvaluateEmployeeScreen> {
             }),
 
             _sectionTitle("🎯 Step 2: SWOT Analysis"),
-Card(
-  elevation: 4,
-  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-  child: Padding(
-    padding: const EdgeInsets.all(20.0),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var i = 0; i < 4; i++) ...[
-          Container(
-            margin: const EdgeInsets.only(bottom: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  ["💪 Strengths", "⚠️ Weaknesses", "🚀 Opportunities", "⚡ Threats"][i],
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF0047BB),
-                    fontSize: 16,
-                  ),
+            Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var i = 0; i < 4; i++) ...[
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              ["💪 Strengths", "⚠️ Weaknesses", "🚀 Opportunities", "⚡ Threats"][i],
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF0047BB),
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _buildEmployeeResponseCard(
+                              "Employee Response:",
+                              _getSafeValue(eval, ['swot', ['strengths', 'weaknesses', 'opportunities', 'threats'][i]], 'Not provided').toString(),
+                            ),
+                            const SizedBox(height: 12),
+                            _buildTextField(
+                              [_strengthsController, _weaknessesController, _opportunitiesController, _threatsController][i],
+                              "Manager's Input: ${["Strengths", "Areas for Improvement", "Growth Opportunities", "Potential Challenges"][i]}",
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-                const SizedBox(height: 12),
-                _buildEmployeeResponseCard(
-                  "Employee Response:",
-                  _getSafeValue(eval, ['swot', ['strengths', 'weaknesses', 'opportunities', 'threats'][i]], 'Not provided').toString(),
-                ),
-                const SizedBox(height: 12),
-                _buildTextField(
-                  [_strengthsController, _weaknessesController, _opportunitiesController, _threatsController][i],
-                  "Manager's Input: ${["Strengths", "Areas for Improvement", "Growth Opportunities", "Potential Challenges"][i]}",
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
-      ],
-    ),
-  ),
-),
-
 
             _sectionTitle("🏆 Step 3: Achievements & Challenges"),
-Card(
-  elevation: 4,
-  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-  child: Padding(
-    padding: const EdgeInsets.all(20.0),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (int i = 0; i < _achievementQuestions.length; i++) ...[
-          Container(
-            margin: const EdgeInsets.only(bottom: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "🎯 ${_achievementQuestions[i]}",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF0047BB),
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 12),
+            Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (int i = 0; i < _achievementQuestions.length; i++) ...[
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "🎯 ${_achievementQuestions[i]}",
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF0047BB),
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
 
-                // Employee Response per question
-                _buildEmployeeResponseCard(
-                  "Employee Response:",
-                  () {
-                    final list = eval['achievements'];
-                    if (list is List && i < list.length) {
-                      return list[i]?.toString() ?? 'Not provided';
-                    }
-                    return 'Not provided';
-                  }()
-                ),
+                            // Employee Response per question
+                            _buildEmployeeResponseCard(
+                              "Employee Response:",
+                              () {
+                                final list = eval['achievements'];
+                                if (list is List && i < list.length) {
+                                  return list[i]?.toString() ?? 'Not provided';
+                                }
+                                return 'Not provided';
+                              }()
+                            ),
 
-                const SizedBox(height: 12),
+                            const SizedBox(height: 12),
 
-                // Manager's input field
-                _buildTextField(
-                  _managerAchievements[i],
-                  _achievementManagerFields[i],
+                            // Manager's input field
+                            _buildTextField(
+                              _managerAchievements[i],
+                              _achievementManagerFields[i],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
-      ],
-    ),
-  ),
-),
-
-
 
             _sectionTitle("📋 Step 4: Business Model Canvas"),
             Card(
@@ -637,47 +756,46 @@ Card(
             ),
 
             _sectionTitle("📝 Step 5: Summary & Next Steps"),
-Card(
-  elevation: 4,
-  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-  child: Padding(
-    padding: const EdgeInsets.all(20.0),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var i = 0; i < 3; i++) ...[
-          Container(
-            margin: const EdgeInsets.only(bottom: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  ["✅ What Went Well", "⚡ Power Up", "🎯 Next Steps"][i],
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF0047BB),
-                    fontSize: 16,
-                  ),
+            Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var i = 0; i < 3; i++) ...[
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              ["✅ What Went Well", "⚡ Power Up", "🎯 Next Steps"][i],
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF0047BB),
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _buildEmployeeResponseCard(
+                              "Employee Response:",
+                              _getSafeValue(eval, ['summary', ['whatWentWell', 'powerUp', 'nextSteps'][i]], 'Not provided').toString(),
+                            ),
+                            const SizedBox(height: 12),
+                            _buildTextField(
+                              [_wentWellController, _powerUpController, _nextStepsController][i],
+                              "Manager's Input: ${["What Went Well", "Areas to Power Up", "Recommended Next Steps"][i]}",
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-                const SizedBox(height: 12),
-                _buildEmployeeResponseCard(
-                  "Employee Response:",
-                  _getSafeValue(eval, ['summary', ['whatWentWell', 'powerUp', 'nextSteps'][i]], 'Not provided').toString(),
-                ),
-                const SizedBox(height: 12),
-                _buildTextField(
-                  [_wentWellController, _powerUpController, _nextStepsController][i],
-                  "Manager's Input: ${["What Went Well", "Areas to Power Up", "Recommended Next Steps"][i]}",
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
-      ],
-    ),
-  ),
-),
-
 
             const SizedBox(height: 30),
             Center(
@@ -736,7 +854,7 @@ Card(
       ),
     );
   }
-
+  
   @override
   void dispose() {
     _managerCommentControllers.forEach((_, c) => c.dispose());
