@@ -1,12 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'comparison_view.dart'; // Import your separate ComparisonView
+import 'comparison_view.dart'; 
 
 class ManagerDashboard extends StatelessWidget {
   const ManagerDashboard({super.key});
 
-  // FIXED: Improved type-safe Firestore data conversion
   Map<String, dynamic> _convertFirestoreData(dynamic data) {
     if (data == null) return <String, dynamic>{};
     
@@ -21,7 +20,6 @@ class ManagerDashboard extends StatelessWidget {
     return <String, dynamic>{};
   }
 
-  // FIXED: More robust recursive value conversion with type safety
   dynamic _convertValue(dynamic value) {
     if (value == null) return null;
     
@@ -34,13 +32,12 @@ class ManagerDashboard extends StatelessWidget {
     } else if (value is List) {
       return value.map((item) => _convertValue(item)).toList();
     } else if (value is Timestamp) {
-      return value; // Keep Timestamp as is for later conversion
+      return value; 
     }
     
     return value;
   }
 
-  // FIXED: Enhanced safe type conversion for numeric fields with better error handling
   int _safeParseInt(dynamic value, {int defaultValue = 0}) {
     if (value == null) return defaultValue;
     
@@ -72,18 +69,16 @@ class ManagerDashboard extends StatelessWidget {
     return defaultValue;
   }
 
-  // FIXED: Enhanced safe type conversion for string fields
   String _safeParseString(dynamic value, {String defaultValue = ''}) {
     if (value == null) return defaultValue;
     
-    // Handle direct string
+
     if (value is String) return value;
     
-    // Convert other types to string
+   
     return value.toString();
   }
 
-  // FIXED: New method to properly structure evaluation data for ComparisonView
   Map<String, dynamic> _prepareEvaluationData(Map<String, dynamic> rawData) {
     final prepared = <String, dynamic>{};
     
@@ -209,7 +204,6 @@ class ManagerDashboard extends StatelessWidget {
     return prepared;
   }
 
-  // FIXED: Enhanced data cleaning with comprehensive field mapping
   Map<String, dynamic> _cleanEvaluationData(Map<String, dynamic> rawData) {
     final cleaned = <String, dynamic>{};
     
@@ -237,7 +231,7 @@ class ManagerDashboard extends StatelessWidget {
           cleaned[key] = _safeParseInt(value);
           break;
         
-        // Text fields that should be strings
+       
         case 'strengthstext':
         case 'strengths_text':
         case 'improvementstext':
@@ -256,7 +250,7 @@ class ManagerDashboard extends StatelessWidget {
           cleaned[key] = _safeParseString(value);
           break;
         
-        // Special handling for common evaluation fields
+    
         case 'employee_name':
         case 'employeename':
         case 'name':
@@ -267,7 +261,6 @@ class ManagerDashboard extends StatelessWidget {
         case 'review_date':
         case 'reviewdate':
         case 'timestamp':
-          // Keep timestamps and dates as-is
           cleaned[key] = value;
           break;
           
@@ -312,7 +305,7 @@ class ManagerDashboard extends StatelessWidget {
     return cleaned;
   }
 
-  // FIXED: Safe nested map access with proper type checking
+
   Map<String, dynamic>? _safeGetMap(Map<String, dynamic> data, String key) {
     final value = data[key];
     if (value == null) return null;
@@ -326,22 +319,22 @@ class ManagerDashboard extends StatelessWidget {
     return null;
   }
 
-  // FIXED: Updated check with better null safety
+
   bool _isEvaluatedByManager(Map<String, dynamic> data) {
     print('🔍 Checking evaluation: ${data['name']} - hasManagerReview: ${data['hasManagerReview']} - status: ${data['status']}');
     
-    // PRIMARY CHECK: Match your actual save format
+
     if (data['hasManagerReview'] == true) {
       return true;
     }
     
-    // SECONDARY CHECK: Status-based detection
+   
     final status = data['status']?.toString().toLowerCase();
     if (status == 'completed' || status == 'manager_completed' || status == 'reviewed') {
       return true;
     }
     
-    // FALLBACK: Legacy format checks with safe map access
+
     final managerReview = _safeGetMap(data, 'managerReview');
     if (managerReview != null) {
       final isCompleted = managerReview['isCompleted'] == true ||
@@ -360,13 +353,13 @@ class ManagerDashboard extends StatelessWidget {
            data['managerReviewDate'] != null;
   }
 
-  // FIXED: Safe timestamp extraction
+ 
   DateTime? _getManagerReviewDate(Map<String, dynamic> data) {
-    // Try your actual save format first
+
     Timestamp? timestamp = data['lastUpdated'] as Timestamp? ??
                           data['managerReviewDate'] as Timestamp?;
     
-    // Fallback to legacy formats with safe map access
+
     if (timestamp == null) {
       final managerReview = _safeGetMap(data, 'managerReview');
       if (managerReview != null) {
@@ -380,7 +373,7 @@ class ManagerDashboard extends StatelessWidget {
     return timestamp?.toDate();
   }
 
-  // FIXED: Safe string extraction for employee name
+
   String _getEmployeeName(Map<String, dynamic> data) {
     // Try direct name field first
     if (data['name'] != null) {
@@ -445,7 +438,7 @@ class ManagerDashboard extends StatelessWidget {
           onTap: () async {
             if (isEvaluated) {
               try {
-                // FIXED: Better extraction and preparation of data for ComparisonView
+                
                 final rawEmployeeEval = _safeGetMap(data, 'employeeEvaluation') ?? 
                                        _safeGetMap(data, 'evaluation') ?? 
                                        _safeGetMap(data, 'selfEvaluation') ??
@@ -454,8 +447,7 @@ class ManagerDashboard extends StatelessWidget {
                 final rawManagerReview = _safeGetMap(data, 'managerReview') ?? 
                                         _safeGetMap(data, 'managerEvaluation') ??
                                         <String, dynamic>{};
-                
-                // FIXED: Use the new preparation method instead of just cleaning
+ 
                 final employeeEval = _prepareEvaluationData(rawEmployeeEval);
                 final managerReview = _prepareEvaluationData(rawManagerReview);
                 
@@ -979,8 +971,7 @@ class ManagerDashboard extends StatelessWidget {
                   }
                   
                   final docs = snapshot.data!.docs;
-                  
-                  // FIXED: Safe document processing with proper type conversion
+   
                   final List<Map<String, dynamic>> pendingEvaluations = [];
                   final List<Map<String, dynamic>> completedEvaluations = [];
                   
