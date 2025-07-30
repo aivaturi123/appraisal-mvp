@@ -1,3 +1,10 @@
+// ✅ Force Java version for Gradle (before evaluation)
+gradle.settingsEvaluated {
+    println("Overriding java.home to: C:\\Users\\nancy\\Downloads\\Android\\Android Studio1\\jbr")
+    System.setProperty("java.home", "C:\\Users\\nancy\\Downloads\\Android\\Android Studio1\\jbr")
+}
+
+// ✅ Repositories used in all modules
 allprojects {
     repositories {
         google()
@@ -5,17 +12,13 @@ allprojects {
     }
 }
 
-val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()
-rootProject.layout.buildDirectory.value(newBuildDir)
+// ✅ Optional: shared build directory setup
+val newBuildDir = rootProject.layout.buildDirectory.dir("../../build").get()
+rootProject.layout.buildDirectory.set(newBuildDir)
 
 subprojects {
-    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
-    project.layout.buildDirectory.value(newSubprojectBuildDir)
-}
-subprojects {
-    project.evaluationDependsOn(":app")
+    val newSubprojectBuildDir = newBuildDir.dir(project.name)
+    project.layout.buildDirectory.set(newSubprojectBuildDir)
 }
 
-tasks.register<Delete>("clean") {
-    delete(rootProject.layout.buildDirectory)
-}
+// ✅ Make
