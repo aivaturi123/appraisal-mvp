@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:8000';
+  static const String baseUrl = 'https://appraisal-mvp.onrender.com';
 
   static Future<bool> submitSelfEvaluation(Map<String, dynamic> data) async {
     final url = Uri.parse('$baseUrl/submit-evaluation');
